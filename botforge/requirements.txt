@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+websockets
+requests
+python-dotenv
+pymupdf
+beautifulsoup4
+faiss-cpu
+sentence-transformers
+Pillow
+mss
+groq
+python-multipart
+aiofiles
