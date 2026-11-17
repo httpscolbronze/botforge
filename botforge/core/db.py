@@ -1,3 +1,4 @@
+
 """
 db.py — SQLite database layer for BotForge
 Handles all bot config storage, retrieval and updates.
@@ -6,82 +7,148 @@ Handles all bot config storage, retrieval and updates.
 import sqlite3
 import uuid
 import json
-import os
+from pathlib import Path
 from datetime import datetime
+from contextlib import closing
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'botforge.db')
+DB_PATH = Path(__file__).resolve().parent.parent / "botforge.db"
+
+
+def get_connection():
+    """Create a database connection."""
+    return sqlite3.connect(DB_PATH, timeout=10)
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS bots (
-            id          TEXT PRIMARY KEY,
-            name        TEXT NOT NULL,
-            system_prompt TEXT NOT NULL,
-            config      TEXT NOT NULL,
-            has_docs    INTEGER DEFAULT 0,
-            created_at  TEXT NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    """Initialize the database."""
+    with closing(get_connection()) as conn:
+        with conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS bots (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    system_prompt TEXT NOT NULL,
+                    config TEXT NOT NULL,
+                    has_docs INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+            """)
 
 
-def create_bot(name: str, system_prompt: str, config: dict, has_docs: bool = False) -> str:
-    bot_id = str(uuid.uuid4())[:8]
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'INSERT INTO bots (id, name, system_prompt, config, has_docs, created_at) VALUES (?,?,?,?,?,?)',
-        (bot_id, name, system_prompt, json.dumps(config), int(has_docs), datetime.now().isoformat())
-    )
-    conn.commit()
-    conn.close()
+def create_bot(
+    name: str,
+    system_prompt: str,
+    config: dict,
+    has_docs: bool = False
+) -> str:
+    """Create a bot and return its unique ID."""
+
+    bot_id = str(uuid.uuid4())
+
+    with closing(get_connection()) as conn:
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO bots
+                (id, name, system_prompt, config, has_docs, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    bot_id,
+                    name,
+                    system_prompt,
+                    json.dumps(config),
+                    int(has_docs),
+                    datetime.now().isoformat()
+                )
+            )
+
     return bot_id
 
 
 def get_bot(bot_id: str) -> dict | None:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT * FROM bots WHERE id=?', (bot_id,))
-    row = c.fetchone()
-    conn.close()
-    if not row:
+    """Retrieve a bot by ID."""
+
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            "SELECT * FROM bots WHERE id = ?",
+            (bot_id,)
+        ).fetchone()
+
+    if row is None:
         return None
+
     return {
-        'id':            row[0],
-        'name':          row[1],
-        'system_prompt': row[2],
-        'config':        json.loads(row[3]),
-        'has_docs':      bool(row[4]),
-        'created_at':    row[5],
+        "id": row[0],
+        "name": row[1],
+        "system_prompt": row[2],
+        "config": json.loads(row[3]),
+        "has_docs": bool(row[4]),
+        "created_at": row[5]
     }
 
 
 def update_bot(bot_id: str, fields: dict):
-    allowed = {'name', 'system_prompt', 'config', 'has_docs'}
+    """Update permitted bot fields."""
+
+    allowed = {
+        "name",
+        "system_prompt",
+        "config",
+        "has_docs"
+    }
+
     updates = []
     values = []
-    for k, v in fields.items():
-        if k in allowed:
-            updates.append(f'{k}=?')
-            values.append(json.dumps(v) if k == 'config' else v)
+
+    for key, value in fields.items():
+
+        if key not in allowed:
+            continue
+
+        if key == "config":
+            value = json.dumps(value)
+
+        elif key == "has_docs":
+            value = int(bool(value))
+
+        updates.append(f"{key} = ?")
+        values.append(value)
+
     if not updates:
         return
+
     values.append(bot_id)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(f'UPDATE bots SET {", ".join(updates)} WHERE id=?', values)
-    conn.commit()
-    conn.close()
+
+    query = f"""
+        UPDATE bots
+        SET {", ".join(updates)}
+        WHERE id = ?
+    """
+
+    with closing(get_connection()) as conn:
+        with conn:
+            conn.execute(query, values)
 
 
 def list_bots() -> list[dict]:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT id, name, has_docs, created_at FROM bots ORDER BY created_at DESC')
-    rows = c.fetchall()
-    conn.close()
-    return [{'id': r[0], 'name': r[1], 'has_docs': bool(r[2]), 'created_at': r[3]} for r in rows]
+    """Return all bots, newest first."""
+
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, name, has_docs, created_at
+            FROM bots
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "has_docs": bool(row[2]),
+            "created_at": row[3]
+        }
+        for row in rows
+    ]

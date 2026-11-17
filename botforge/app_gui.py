@@ -1,10 +1,5 @@
 """
-app_gui.py — BotForge Streamlit GUI Client
-A gorgeous, modern web dashboard for BotForge.
-Includes: Host connection, Bot Creator form with PDF upload, and Live Streaming Chat.
-
-Usage:
-    streamlit run app_gui.py
+app_gui.py — BotForge Streamlit GUI with Safe Radial Gradient Background
 """
 
 import os
@@ -13,236 +8,270 @@ import streamlit as st
 
 # ── Page Config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title='BotForge — No-Code AI Builder',
+    page_title='BotForge',
     page_icon='⚡',
-    layout='wide',
-    initial_sidebar_state='expanded',
+    layout='centered',
 )
 
-# ── Custom Dark Cyberpunk Styling ─────────────────────────────────────────────
+# ── Cyberpunk Dark Theme CSS with Safe Background Gradient ────────────────────
 st.markdown("""
 <style>
+    /* Safe Rich Dark Background with Subtle Radial Glow */
     .stApp {
-        background-color: #0d0d0d;
-        color: #ffffff;
-    }
-    sidebar .stSidebar {
-        background-color: #111111;
-    }
-    .stTextInput input, .stTextArea textarea, .stSelectbox select {
-        background-color: #1a1a1a !important;
+        background: radial-gradient(circle at 15% 15%, rgba(0, 229, 255, 0.08) 0%, transparent 40%),
+                    radial-gradient(circle at 85% 85%, rgba(147, 51, 234, 0.08) 0%, transparent 40%),
+                    #0b0b0f !important;
         color: #ffffff !important;
-        border: 1px solid #333333 !important;
-        border-radius: 6px !important;
     }
-    .stButton button {
-        background-color: #00e5ff !important;
+
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+
+    .hero-banner {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 20px;
+        padding: 24px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(0, 229, 255, 0.3);
+        box-shadow: 0 4px 20px rgba(0, 229, 255, 0.1);
+    }
+
+    div.stButton > button {
+        background: linear-gradient(135deg, #00e5ff 0%, #0088cc 100%) !important;
         color: #000000 !important;
-        font-weight: bold !important;
-        border-radius: 6px !important;
+        font-weight: 700 !important;
+        border-radius: 14px !important;
         border: none !important;
-        transition: 0.2s;
+        padding: 10px 20px !important;
+        box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3) !important;
+        width: 100% !important;
     }
-    .stButton button:hover {
-        background-color: #00b3cc !important;
+    div.stButton > button:hover {
+        opacity: 0.9 !important;
         color: #000000 !important;
     }
-    h1, h2, h3 {
-        color: #00e5ff !important;
+
+    .stTextInput input, .stTextArea textarea, .stSelectbox select {
+        background-color: #16161c !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 12px !important;
     }
-    .stAlert {
-        background-color: #1a1a1a;
-        color: #00e5ff;
-        border: 1px solid #00e5ff;
+
+    h1, h2, h3 {
+        color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Sidebar: Connection Settings ──────────────────────────────────────────────
-st.sidebar.title('⚡ BotForge Control')
-st.sidebar.markdown('---')
-
-host_ip = st.sidebar.text_input('Host IP', value='localhost')
-host_port = st.sidebar.text_input('Port', value='8000')
+# ── Connection & State Setup ──────────────────────────────────────────────────
+host_ip = os.getenv('HOST_IP', 'localhost')
+host_port = os.getenv('HOST_PORT', '8000')
 BASE_URL = f'http://{host_ip}:{host_port}'
 
-# Health check connection status
+if 'nav' not in st.session_state:
+    st.session_state.nav = 'home'
+if 'active_bot_id' not in st.session_state:
+    st.session_state.active_bot_id = None
+if 'chat_histories' not in st.session_state:
+    st.session_state.chat_histories = {}
+
+# Fetch bots
 try:
-    r = requests.get(f'{BASE_URL}/', timeout=2)
-    if r.status_code == 200:
-        st.sidebar.success('🟢 Connected to Host')
+    r = requests.get(f'{BASE_URL}/bots', timeout=2)
+    bots = r.json() if r.status_code == 200 else []
+except Exception:
+    bots = []
+
+# ── NAVIGATION: HOME SCREEN ───────────────────────────────────────────────────
+if st.session_state.nav == 'home':
+    cols = st.columns([5, 1, 1])
+    with cols[0]:
+        st.markdown('## ⚡ BotForge')
+    with cols[1]:
+        st.markdown('🟢 LAN')
+    with cols[2]:
+        if st.button('⚙️', key='settings_btn'):
+            st.session_state.nav = 'settings'
+            st.rerun()
+
+    # Hero Banner
+    st.markdown("""
+    <div class="hero-banner">
+        <h3 style="margin:0; color: #00e5ff;">Private LAN Mode</h3>
+        <p style="margin:6px 0 0 0; color: #94a3b8; font-size: 14px;">Harness 100% local AI power with zero cloud leaks.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Action Grid
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button('✏️ Forge New Bot', key='forge_btn', use_container_width=True):
+            st.session_state.nav = 'create'
+            st.rerun()
+    with col2:
+        if st.button('💬 Open Live Chat', key='chat_btn', use_container_width=True):
+            if bots:
+                st.session_state.active_bot_id = bots[0]['id']
+                st.session_state.nav = 'chat'
+                st.rerun()
+            else:
+                st.warning('Create a bot first!')
+
+    st.markdown('### Active Bots & History')
+
+    if not bots:
+        st.info('No bots created yet. Click **Forge New Bot** above to create your first assistant!')
     else:
-        st.sidebar.error('🔴 Host responded with error')
-except Exception:
-    st.sidebar.error('🔴 Disconnected (Check host.py)')
+        for b in bots:
+            docs_badge = '📄 RAG Active' if b['has_docs'] else '⚡ Standard'
+            if st.button(f"💬 {b['name']}  |  {docs_badge}  →", key=f"bot_{b['id']}", use_container_width=True):
+                st.session_state.active_bot_id = b['id']
+                st.session_state.nav = 'chat'
+                st.rerun()
 
-st.sidebar.markdown('---')
-st.sidebar.info('**BotForge v1.0**\n\nNo-code AI chatbot builder with private LAN mode & RAG pipeline.')
+    st.markdown('---')
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        if st.button('🏠 Home', key='nav_home', use_container_width=True):
+            pass
+    with b2:
+        if st.button('💬 Chats', key='nav_chats', use_container_width=True):
+            if bots:
+                st.session_state.active_bot_id = bots[0]['id']
+                st.session_state.nav = 'chat'
+                st.rerun()
+    with b3:
+        if st.button('🛠️ Forge', key='nav_forge', use_container_width=True):
+            st.session_state.nav = 'create'
+            st.rerun()
+    with b4:
+        if st.button('🔌 Host', key='nav_host', use_container_width=True):
+            st.session_state.nav = 'settings'
+            st.rerun()
 
-# ── Main Header ───────────────────────────────────────────────────────────────
-st.title('⚡ BotForge Dashboard')
-st.markdown('*Build, deploy, and chat with custom AI bots in seconds — zero coding required.*')
+# ── NAVIGATION: CREATE BOT SCREEN ─────────────────────────────────────────────
+elif st.session_state.nav == 'create':
+    if st.button('← Back to Home', key='back_home_create'):
+        st.session_state.nav = 'home'
+        st.rerun()
 
-# Fetch existing bots
-try:
-    bots_res = requests.get(f'{BASE_URL}/bots', timeout=3)
-    bots_list = bots_res.json() if bots_res.status_code == 200 else []
-except Exception:
-    bots_list = []
+    st.markdown('## ✏️ Forge Custom AI Bot')
+    st.markdown('Describe your bot in plain English. Our Meta-LLM will build the system prompt automatically.')
 
-# ── Tabs Navigation ───────────────────────────────────────────────────────────
-tab_create, tab_chat, tab_info = st.tabs(['🛠️ Forge a Bot', '💬 Live Chat', '📊 System Info'])
+    with st.form('create_form'):
+        name = st.text_input('Bot Name', placeholder='e.g. Legal Contract Advisor')
+        persona = st.text_area('Persona / Role Description', placeholder='e.g. Expert contract reviewer who spots risk clauses...')
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TAB 1: FORGE A BOT
-# ──────────────────────────────────────────────────────────────────────────────
-with tab_create:
-    st.subheader('Create a New Custom Chatbot')
-    st.markdown('Fill out the form below. Our Meta-LLM will automatically write an engineered system prompt for your bot.')
-
-    with st.form('bot_forge_form'):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            bot_name = st.text_input('Bot Name', placeholder='e.g. Pizza Support Bot')
-            persona = st.text_area('Persona / Description', placeholder='e.g. Friendly and helpful customer support agent for an Italian pizzeria.')
-            tone = st.selectbox('Tone', ['Friendly', 'Professional', 'Casual', 'Formal', 'Socratic', 'Sarcastic'])
-            language = st.selectbox('Language', ['English', 'Hindi', 'Spanish', 'French', 'Auto-detect'])
-
-        with col2:
+        c1, c2 = st.columns(2)
+        with c1:
+            tone = st.selectbox('Tone', ['Professional', 'Friendly', 'Concise', 'Formal', 'Direct'])
+            language = st.selectbox('Language', ['English', 'Hindi', 'Spanish', 'French'])
+        with c2:
             length = st.selectbox('Response Length', ['Short', 'Medium', 'Detailed'])
-            guardrails = st.text_input('Guardrails / Rules', placeholder='e.g. Never mention competitors. Always suggest calling us.')
-            domain = st.text_input('Domain / Extra Context', placeholder='e.g. Menu items, store timings, pricing')
-            uploaded_file = st.file_uploader('Upload Knowledge Base (PDF)', type=['pdf'])
-            url_input = st.text_input('Or Ingest Website URL', placeholder='https://example.com/faq')
+            guardrails = st.text_input('Guardrails', placeholder='e.g. Never give definitive legal advice')
 
-        submitted = st.form_submit_button('🚀 Forge Bot Now')
+        domain = st.text_input('Domain Knowledge', placeholder='e.g. Employment contracts, NDAs')
+        uploaded_file = st.file_uploader('Upload Private Knowledge Base (PDF)', type=['pdf'])
+        url_input = st.text_input('Or Ingest Website URL', placeholder='https://example.com/policy')
+
+        submitted = st.form_submit_button('✨ Forge & Save Bot')
 
         if submitted:
-            if not bot_name or not persona:
-                st.error('Please provide at least a Bot Name and Persona.')
+            if not name or not persona:
+                st.error('Please enter a Name and Persona.')
             else:
-                with st.spinner('⚡ Meta-LLM crafting system prompt & indexing knowledge base...'):
+                with st.spinner('⚡ Meta-LLM generating engineered system prompt...'):
                     try:
                         data = {
-                            'name': bot_name,
-                            'persona': persona,
-                            'tone': tone,
-                            'language': language,
-                            'length': length,
-                            'guardrails': guardrails,
-                            'domain': domain,
-                            'url': url_input,
+                            'name': name, 'persona': persona, 'tone': tone,
+                            'language': language, 'length': length,
+                            'guardrails': guardrails, 'domain': domain, 'url': url_input,
                         }
                         files = {}
                         if uploaded_file is not None:
                             files['file'] = (uploaded_file.name, uploaded_file.getvalue(), 'application/pdf')
 
                         res = requests.post(f'{BASE_URL}/create-bot', data=data, files=files if files else None, timeout=120)
-
                         if res.status_code == 200:
-                            res_data = res.json()
-                            st.success(f'✨ Bot "{bot_name}" successfully forged!')
-                            st.markdown(f'**Bot ID:** `{res_data["bot_id"]}`')
-                            st.markdown(f'**Shareable Link:** `{res_data["share_url"]}`')
-                            with st.expander('🔍 View Generated System Prompt'):
-                                st.code(res_data['system_prompt'], language='markdown')
-                            st.balloons()
+                            b_data = res.json()
+                            st.success(f'Successfully forged bot: {name}!')
+                            st.session_state.active_bot_id = b_data['bot_id']
+                            st.session_state.nav = 'chat'
+                            st.rerun()
                         else:
-                            st.error(f'Failed to create bot: {res.text}')
+                            st.error(f'Error: {res.text}')
                     except Exception as e:
-                        st.error(f'Connection error: {e}')
+                        st.error(f'Connection failed: {e}')
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TAB 2: LIVE CHAT
-# ──────────────────────────────────────────────────────────────────────────────
-with tab_chat:
-    if not bots_list:
-        st.warning('No bots found. Create one in the **Forge a Bot** tab first!')
+# ── NAVIGATION: CHAT SCREEN ───────────────────────────────────────────────────
+elif st.session_state.nav == 'chat':
+    if st.button('← Back to Home', key='back_home_chat'):
+        st.session_state.nav = 'home'
+        st.rerun()
+
+    active_bot = next((b for b in bots if b['id'] == st.session_state.active_bot_id), None)
+    if not active_bot and bots:
+        active_bot = bots[0]
+        st.session_state.active_bot_id = active_bot['id']
+
+    if not active_bot:
+        st.warning('No bots available.')
+        if st.button('Create Bot', key='create_bot_fallback'):
+            st.session_state.nav = 'create'
+            st.rerun()
     else:
-        # Bot selector
-        bot_options = {f'{b["name"]} (ID: {b["id"]})': b['id'] for b in bots_list}
-        selected_label = st.selectbox('Select Bot to Chat With', list(bot_options.keys()))
-        current_bot_id = bot_options[selected_label]
+        st.markdown(f"### 💬 Chat with {active_bot['name']}")
+        if active_bot['has_docs']:
+            st.caption('📄 RAG Knowledge Base Connected')
 
-        # Fetch full bot details
-        try:
-            bot_detail_res = requests.get(f'{BASE_URL}/bot/{current_bot_id}', timeout=3)
-            bot_detail = bot_detail_res.json() if bot_detail_res.status_code == 200 else {}
-        except Exception:
-            bot_detail = {}
+        bot_id = active_bot['id']
+        if bot_id not in st.session_state.chat_histories:
+            st.session_state.chat_histories[bot_id] = []
 
-        if bot_detail:
-            st.markdown(f'### Chatting with: `{bot_detail["name"]}`')
-            if bot_detail.get('has_docs'):
-                st.caption('📄 Knowledge base active (RAG enabled)')
+        history = st.session_state.chat_histories[bot_id]
 
-            # Initialize chat history in session state
-            if 'chat_history' not in st.session_state:
-                st.session_state.chat_history = {}
+        for msg in history:
+            with st.chat_message(msg['role']):
+                st.markdown(msg['content'])
 
-            if current_bot_id not in st.session_state.chat_history:
-                st.session_state.chat_history[current_bot_id] = []
+        if user_msg := st.chat_input('Type your message...'):
+            history.append({'role': 'user', 'content': user_msg})
+            with st.chat_message('user'):
+                st.markdown(user_msg)
 
-            history = st.session_state.chat_history[current_bot_id]
+            with st.chat_message('assistant'):
+                placeholder = st.empty()
+                full_reply = ''
+                try:
+                    api_hist = [{'role': m['role'], 'content': m['content']} for m in history[:-1]]
+                    payload = {'message': user_msg, 'history': api_hist}
+                    with requests.post(f'{BASE_URL}/chat/{bot_id}', json=payload, stream=True, timeout=120) as r:
+                        for chunk in r.iter_content(chunk_size=None, decode_unicode=True):
+                            if chunk:
+                                full_reply += chunk
+                                placeholder.markdown(full_reply + '▌')
+                    placeholder.markdown(full_reply)
+                except Exception as e:
+                    full_reply = f'[Error: {e}]'
+                    placeholder.markdown(full_reply)
 
-            # Display chat messages
-            for message in history:
-                with st.chat_message(message['role']):
-                    st.markdown(message['content'])
+            history.append({'role': 'assistant', 'content': full_reply})
 
-            # Chat input
-            if user_prompt := st.chat_input('Type your message...'):
-                # Append user message
-                history.append({'role': 'user', 'content': user_prompt})
-                with st.chat_message('user'):
-                    st.markdown(user_prompt)
+# ── NAVIGATION: SETTINGS SCREEN ───────────────────────────────────────────────
+elif st.session_state.nav == 'settings':
+    if st.button('← Back to Home', key='back_home_settings'):
+        st.session_state.nav = 'home'
+        st.rerun()
 
-                # Stream assistant response
-                with st.chat_message('assistant'):
-                    message_placeholder = st.empty()
-                    full_response = ''
-
-                    try:
-                        # Prepare history format for API
-                        api_history = [{'role': m['role'], 'content': m['content']} for m in history[:-1]]
-                        payload = {'message': user_prompt, 'history': api_history}
-
-                        with requests.post(f'{BASE_URL}/chat/{current_bot_id}', json=payload, stream=True, timeout=120) as r:
-                            for chunk in r.iter_content(chunk_size=None, decode_unicode=True):
-                                if chunk:
-                                    full_response += chunk
-                                    message_placeholder.markdown(full_response + '▌')
-                        message_placeholder.markdown(full_response)
-                    except Exception as e:
-                        full_response = f'[Error connecting to model: {e}]'
-                        message_placeholder.markdown(full_response)
-
-                history.append({'role': 'assistant', 'content': full_response})
-
-# ──────────────────────────────────────────────────────────────────────────────
-# TAB 3: SYSTEM INFO
-# ──────────────────────────────────────────────────────────────────────────────
-with tab_info:
-    st.subheader('System Architecture & Status')
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric('Active Bots', len(bots_list))
-    with col2:
-        st.metric('Host Status', 'Online' if st.sidebar.status else 'Offline')
-    with col3:
-        st.metric('Backend Engine', 'FastAPI + Ollama')
-
-    st.markdown('---')
-    st.markdown('### How to launch local services')
-    st.code("""
-# 1. Start Ollama
-ollama serve
-
-# 2. Start BotForge Host Server
-python host.py
-
-# 3. Run this Streamlit GUI Dashboard
-streamlit run app_gui.py
-    """, language='bash')
+    st.markdown('### ⚙️ Host & Connection Settings')
+    with st.form('settings_form'):
+        new_ip = st.text_input('Host IP Address', value=host_ip)
+        new_port = st.text_input('Port Number', value=host_port)
+        saved = st.form_submit_button('Save Settings')
+        if saved:
+            os.environ['HOST_IP'] = new_ip
+            os.environ['HOST_PORT'] = new_port
+            st.success('Settings updated!')
+            st.session_state.nav = 'home'
+            st.rerun()
