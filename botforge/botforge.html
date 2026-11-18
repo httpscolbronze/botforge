@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BotForge // Sovereign AI & Private LAN Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darker: '#07070a',
+                        cardbg: '#16161c',
+                        bordercolor: '#22222d',
+                        neoncyan: '#00e5ff',
+                        neonemerald: '#10b981',
+                        neonviolet: '#8b5cf6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #07070a; }
+        ::-webkit-scrollbar-thumb { background: #22222d; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00e5ff; }
+    </style>
+</head>
+<body class="bg-darker text-slate-100 font-sans antialiased overflow-x-hidden select-none min-h-screen flex flex-col">
+
+    <!-- MODE SELECTOR MODAL (HOST vs CLIENT) -->
+    <div id="mode-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-cardbg border border-bordercolor rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6 text-center">
+            <div class="w-16 h-16 bg-cyan-500/20 border border-cyan-500/50 rounded-2xl mx-auto flex items-center justify-center text-cyan-400 text-3xl shadow-lg shadow-cyan-500/20">
+                ⚡
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-wide">Welcome to BotForge</h1>
+                <p class="text-xs text-slate-400 mt-1">Select your operation mode to initialize the Sovereign AI suite.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-2">
+                <button onclick="selectMode('host')" class="p-5 bg-slate-900 border-2 border-cyan-500/60 hover:border-cyan-400 rounded-2xl flex flex-col items-center space-y-3 transition group shadow-lg shadow-cyan-500/10">
+                    <div class="w-12 h-12 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition">
+                        <i data-lucide="server" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-100">Host Mode</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Run Ollama & FastAPI server locally</div>
+                    </div>
+                </button>
+
+                <button onclick="selectMode('client')" class="p-5 bg-slate-900 border-2 border-slate-800 hover:border-emerald-500/60 rounded-2xl flex flex-col items-center space-y-3 transition group shadow-lg">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition">
+                        <i data-lucide="monitor" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-100">Client Mode</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Connect to host over LAN IP</div>
+                    </div>
+                </button>
+            </div>
+
+            <div id="client-ip-box" class="hidden space-y-3 pt-2 text-left bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+                <label class="block text-xs font-mono text-slate-300">Enter Host LAN IP Address:</label>
+                <input type="text" id="host-ip-input" value="192.168.1.50" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-cyan-500">
+                <button onclick="connectAsClient()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-darker font-bold py-2.5 rounded-xl text-xs transition">
+                    Connect to Host
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-cardbg border-b border-bordercolor h-16 px-6 flex items-center justify-between z-40 sticky top-0">
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 bg-gradient-to-tr from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center font-bold text-darker shadow-lg shadow-cyan-500/30">⚡</div>
+                <span class="font-extrabold tracking-wider text-base bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">BOTFORGE.AI // PRIVATE LAN SUITE</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-2 text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full font-mono">
+                <span id="header-status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-300">MODE: <strong id="header-mode-text" class="text-emerald-400">HOST SERVER</strong></span>
+            </div>
+            <div class="hidden lg:flex items-center space-x-2 text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full font-mono">
+                <span class="text-slate-400">BACKEND: <strong class="text-cyan-400" id="header-backend-url">http://localhost:8000</strong></span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3 text-xs font-mono">
+            <button onclick="openModeModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-xs font-mono border border-slate-700 transition">Switch Mode</button>
+            <div class="w-9 h-9 rounded-xl bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400 font-bold shadow-lg shadow-cyan-500/20">BF</div>
+        </div>
+    </header>
+
+    <!-- Main App Layout -->
+    <div class="flex-1 grid grid-cols-12 gap-3 p-4 bg-darker overflow-hidden max-w-[1600px] mx-auto w-full">
+
+        <!-- Left Sidebar: Navigation & Quick Stats -->
+        <aside class="col-span-12 lg:col-span-3 bg-cardbg border border-bordercolor rounded-2xl p-4 flex flex-col space-y-4 shadow-xl">
+            <div>
+                <h2 class="text-xs font-mono tracking-wider text-slate-400 uppercase mb-3">BotForge Navigation</h2>
+                <nav class="space-y-1.5">
+                    <button onclick="switchTab('forge')" id="nav-forge" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition shadow-lg shadow-cyan-500/10">
+                        <span class="flex items-center space-x-2.5"><i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i><span>Bot Builder & Meta-LLM</span></span>
+                        <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-mono">ACTIVE</span>
+                    </button>
+                    <button onclick="switchTab('chat')" id="nav-chat" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-slate-900 text-slate-400 hover:text-slate-200 text-xs font-medium transition">
+                        <span class="flex items-center space-x-2.5"><i data-lucide="message-square" class="w-4 h-4 text-emerald-400"></i><span>Live Streaming Chat</span></span>
+                    </button>
+                    <button onclick="switchTab('overlay')" id="nav-overlay" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-slate-900 text-slate-400 hover:text-slate-200 text-xs font-medium transition">
+                        <span class="flex items-center space-x-2.5"><i data-lucide="eye" class="w-4 h-4 text-purple-400"></i><span>Screen Overlay Copilot</span></span>
+                        <span class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-mono">LLaVA</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Mini Telemetry Box -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 font-mono text-xs shadow-inner">
+                <div class="flex justify-between text-slate-400"><span>Connection:</span><span id="telemetry-status" class="text-emerald-400">Connected</span></div>
+                <div class="flex justify-between text-slate-400"><span>Active Model:</span><span class="text-cyan-400" id="telemetry-chat-model">gemma3:1b</span></div>
+                <div class="flex justify-between text-slate-400"><span>Vision Model:</span><span class="text-purple-400" id="telemetry-vision-model">llava:7b</span></div>
+                <div class="flex justify-between text-slate-400"><span>RAG Engine:</span><span class="text-emerald-400">FAISS Store</span></div>
+            </div>
+
+            <!-- Quick Bot Summary Card -->
+            <div class="flex-1 bg-gradient-to-br from-slate-900/80 to-slate-950 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between shadow-lg">
+                <div>
+                    <div class="text-[10px] font-mono text-cyan-400 uppercase tracking-widest mb-1">Architecture Mode</div>
+                    <div class="text-xs font-bold text-slate-100 flex items-center space-x-2 mb-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+                        <span id="sidebar-mode-label">Host Mode (Local)</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Runs entirely on local hardware. Zero cloud subscription, zero telemetry, absolute privacy.</p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-800 text-[10px] font-mono text-slate-400 flex justify-between">
+                    <span>STATUS: READY</span>
+                    <span class="text-cyan-400">HACKFORGE 2K26</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center & Right Area: Dynamic Tab Content -->
+        <main class="col-span-12 lg:col-span-9 flex flex-col space-y-4">
+
+            <!-- TAB 1: BOT BUILDER & META-LLM -->
+            <div id="tab-forge-content" class="space-y-4">
+                <div class="bg-cardbg border border-bordercolor rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 class="text-sm font-mono uppercase tracking-wider text-slate-200 font-bold flex items-center space-x-2">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-cyan-400"></i>
+                                <span>1. Plain-English Bot Creator (Meta-LLM Layer)</span>
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Describe what you want your bot to do — BotForge auto-generates a production-grade system prompt.</p>
+                        </div>
+                        <span class="text-xs font-mono bg-cyan-950 text-cyan-400 px-3 py-1 rounded-full border border-cyan-800">No Code Required</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-mono text-slate-300 mb-1">Bot Name</label>
+                                <input type="text" id="bot-name" value="Pizza Restaurant Support" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-slate-300 mb-1">Persona / Description</label>
+                                <textarea id="bot-persona" rows="3" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">Friendly customer support agent for an Italian pizzeria. Answer menu questions and pricing.</textarea>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-mono text-slate-300 mb-1">Tone</label>
+                                    <select id="bot-tone" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+                                        <option>Friendly</option>
+                                        <option>Professional</option>
+                                        <option>Casual</option>
+                                        <option>Formal</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-mono text-slate-300 mb-1">Response Length</label>
+                                    <select id="bot-length" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+                                        <option>Short</option>
+                                        <option>Medium</option>
+                                        <option>Detailed</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 flex flex-col justify-between">
+                            <div>
+                                <label class="block text-xs font-mono text-slate-300 mb-1">Guardrails / Rules</label>
+                                <input type="text" id="bot-guardrails" value="Never mention competitors. Always suggest our combo offer." class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-slate-300 mb-1">Knowledge Base (Upload PDF or URL)</label>
+                                <div class="border-2 border-dashed border-slate-700 hover:border-cyan-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-900/50">
+                                    <i data-lucide="upload-cloud" class="w-6 h-6 mx-auto text-cyan-400 mb-1"></i>
+                                    <div class="text-xs font-bold text-slate-200">Upload Menu / Policy PDF</div>
+                                    <div class="text-[10px] text-slate-400 mt-0.5">Indexed locally via FAISS vector store</div>
+                                </div>
+                            </div>
+                            <button onclick="forgeBot()" class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-darker font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-cyan-500/25 flex items-center justify-center space-x-2">
+                                <i data-lucide="zap" class="w-4 h-4"></i>
+                                <span>Forge Bot via Meta-LLM</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generated System Prompt Preview -->
+                <div class="bg-cardbg border border-bordercolor rounded-2xl p-5 shadow-xl">
+                    <h3 class="text-xs font-mono uppercase tracking-wider text-slate-300 font-bold mb-2 flex items-center space-x-2">
+                        <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+                        <span>Generated System Prompt Preview</span>
+                    </h3>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-300 h-24 overflow-y-auto" id="prompt-preview">
+                        You are a friendly customer support agent for an Italian pizzeria. Always maintain a warm tone, keep responses short, never mention competitors, and always suggest our combo offer.
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: LIVE STREAMING CHAT -->
+            <div id="tab-chat-content" class="hidden space-y-4">
+                <div class="bg-cardbg border border-bordercolor rounded-2xl p-5 shadow-xl flex flex-col h-[520px]">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">🤖</div>
+                            <div>
+                                <h3 class="text-xs font-bold text-slate-100" id="active-chat-title">Pizza Restaurant Support</h3>
+                                <p class="text-[10px] text-slate-400 font-mono">Streaming via Ollama (Mistral 7B) // Local LAN</p>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-mono bg-emerald-950 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-800">CONNECTED</span>
+                    </div>
+
+                    <!-- Chat Messages Area -->
+                    <div class="flex-1 overflow-y-auto py-4 space-y-3 font-mono text-xs" id="chat-stream-box">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">BOT</div>
+                            <div class="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-slate-200 max-w-xl shadow">
+                                Hello! I am your custom BotForge assistant powered by Mistral 7B. How can I help you today?
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="pt-3 border-t border-slate-800 flex items-center space-x-2">
+                        <input type="text" id="chat-message-input" placeholder="Type your message to stream response..." class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono" onkeypress="if(event.key==='Enter') sendStreamChat()">
+                        <button onclick="sendStreamChat()" class="bg-cyan-400 hover:bg-cyan-300 text-darker font-bold px-6 py-3 rounded-xl text-xs transition shadow-lg shadow-cyan-500/30 flex items-center space-x-1.5">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span>Send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SCREEN OVERLAY COPILOT -->
+            <div id="tab-overlay-content" class="hidden space-y-4">
+                <div class="bg-cardbg border border-bordercolor rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 class="text-sm font-mono uppercase tracking-wider text-slate-200 font-bold flex items-center space-x-2">
+                                <i data-lucide="eye" class="w-4 h-4 text-purple-400"></i>
+                                <span>Screen Overlay Copilot (LLaVA Vision)</span>
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Press Ctrl+Space over any software (Excel, PDF, browser) to capture screen and get instant AI answers.</p>
+                        </div>
+                        <span class="text-xs font-mono bg-purple-950 text-purple-400 px-3 py-1 rounded-full border border-purple-800">Always-On-Top</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                            <div>
+                                <div class="text-xs font-bold text-slate-200 mb-2">Simulate Overlay Capture</div>
+                                <p class="text-xs text-slate-400 mb-4">Test how LLaVA reads business data or spreadsheet screenshots locally.</p>
+                                <div class="bg-black/60 rounded-xl p-3 border border-slate-800 text-center font-mono text-[11px] text-cyan-400 py-6">
+                                    📷 Ready for Hotkey: Ctrl + Space
+                                </div>
+                            </div>
+                            <button onclick="triggerOverlaySimulation()" class="mt-4 w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-purple-600/30">
+                                Simulate Screen Capture & Analysis
+                            </button>
+                        </div>
+
+                        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                            <div>
+                                <div class="text-xs font-bold text-slate-200 mb-2">Overlay Analysis Output</div>
+                                <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300 h-28 overflow-y-auto" id="overlay-output">
+                                    Waiting for screen capture...
+                                </div>
+                            </div>
+                            <div class="mt-2 text-[10px] font-mono text-slate-400 flex justify-between">
+                                <span>MODEL: LLaVA 7B (LOCAL)</span>
+                                <span class="text-emerald-400">ZERO DATA LEAK</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let currentBaseURL = "http://localhost:8000";
+        let activeBotId = null;
+
+        // Mode Selector Logic
+        function selectMode(mode) {
+            const modal = document.getElementById('mode-modal');
+            const ipBox = document.getElementById('client-ip-box');
+            const dot = document.getElementById('header-status-dot');
+            const modeText = document.getElementById('header-mode-text');
+            const sideLabel = document.getElementById('sidebar-mode-label');
+            const backendUrlLabel = document.getElementById('header-backend-url');
+
+            if (mode === 'host') {
+                currentBaseURL = "http://localhost:8000";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+                modeText.innerText = "HOST SERVER";
+                modeText.className = "text-emerald-400";
+                sideLabel.innerText = "Host Mode (Local)";
+                backendUrlLabel.innerText = currentBaseURL;
+                modal.classList.add('hidden');
+                testConnection();
+            } else {
+                ipBox.classList.remove('hidden');
+            }
+        }
+
+        function connectAsClient() {
+            const ip = document.getElementById('host-ip-input').value.trim();
+            if(!ip) return;
+            currentBaseURL = `http://${ip}:8000`;
+
+            const modal = document.getElementById('mode-modal');
+            const dot = document.getElementById('header-status-dot');
+            const modeText = document.getElementById('header-mode-text');
+            const sideLabel = document.getElementById('sidebar-mode-label');
+            const backendUrlLabel = document.getElementById('header-backend-url');
+
+            dot.className = "w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse";
+            modeText.innerText = "CLIENT MODE (LAN)";
+            modeText.className = "text-cyan-400";
+            sideLabel.innerText = `Client -> ${ip}`;
+            backendUrlLabel.innerText = currentBaseURL;
+            modal.classList.add('hidden');
+            testConnection();
+        }
+
+        function openModeModal() {
+            document.getElementById('mode-modal').classList.remove('hidden');
+        }
+
+        async function testConnection() {
+            try {
+                const res = await fetch(`${currentBaseURL}/status`);
+                if(res.ok) {
+                    const data = await res.json();
+                    document.getElementById('telemetry-status').innerText = "Connected (LAN)";
+                    document.getElementById('telemetry-status').className = "text-emerald-400";
+                    if(data.chat_model) {
+                        document.getElementById('telemetry-chat-model').innerText = data.chat_model;
+                    }
+                    if(data.vision_model) {
+                        document.getElementById('telemetry-vision-model').innerText = data.vision_model;
+                    }
+                } else {
+                    document.getElementById('telemetry-status').innerText = "Error Responding";
+                    document.getElementById('telemetry-status').className = "text-rose-400";
+                }
+            } catch(e) {
+                document.getElementById('telemetry-status').innerText = "Disconnected";
+                document.getElementById('telemetry-status').className = "text-rose-400";
+            }
+        }
+
+        function switchTab(tab) {
+            ['forge', 'chat', 'overlay'].forEach(t => {
+                const el = document.getElementById(`tab-${t}-content`);
+                const btn = document.getElementById(`nav-${t}`);
+                if (t === tab) {
+                    el.classList.remove('hidden');
+                    if(btn) {
+                        btn.className = "w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition shadow-lg shadow-cyan-500/10";
+                    }
+                } else {
+                    el.classList.add('hidden');
+                    if(btn) {
+                        btn.className = "w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-slate-900 text-slate-400 hover:text-slate-200 text-xs font-medium transition";
+                    }
+                }
+            });
+            lucide.createIcons();
+        }
+
+        async function forgeBot() {
+            const name = document.getElementById('bot-name').value.trim();
+            const persona = document.getElementById('bot-persona').value.trim();
+            const tone = document.getElementById('bot-tone').value;
+            const length = document.getElementById('bot-length').value;
+            const guardrails = document.getElementById('bot-guardrails').value.trim();
+
+            if(!name || !persona) {
+                alert('Please enter a Bot Name and Persona.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('persona', persona);
+            formData.append('tone', tone);
+            formData.append('length', length);
+            formData.append('guardrails', guardrails);
+            formData.append('domain', 'General');
+
+            try {
+                const res = await fetch(`${currentBaseURL}/create-bot`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if(res.ok) {
+                    const data = await res.json();
+                    activeBotId = data.bot_id;
+                    document.getElementById('prompt-preview').innerText = data.system_prompt;
+                    document.getElementById('active-chat-title').innerText = data.name;
+                    alert(`Bot "${name}" forged successfully via Meta-LLM!`);
+                    switchTab('chat');
+                } else {
+                    const err = await res.text();
+                    alert(`Failed to forge bot: ${err}`);
+                }
+            } catch(e) {
+                alert(`Network error connecting to host: ${e}`);
+            }
+        }
+
+        async function sendStreamChat() {
+            const input = document.getElementById('chat-message-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            if(!activeBotId) {
+                // Fetch first available bot if none selected
+                try {
+                    const listRes = await fetch(`${currentBaseURL}/bots`);
+                    const bots = await listRes.json();
+                    if(bots.length > 0) {
+                        activeBotId = bots[0].id;
+                        document.getElementById('active-chat-title').innerText = bots[0].name;
+                    } else {
+                        alert('Please forge a bot first!');
+                        switchTab('forge');
+                        return;
+                    }
+                } catch(e) {
+                    alert('Could not fetch bots from host.');
+                    return;
+                }
+            }
+
+            const box = document.getElementById('chat-stream-box');
+
+            // User bubble
+            const uDiv = document.createElement('div');
+            uDiv.className = "flex items-start space-x-3 justify-end";
+            uDiv.innerHTML = `<div class="bg-cyan-950/80 border border-cyan-500/30 p-3 rounded-2xl text-cyan-200 max-w-xl shadow">${escapeHtml(text)}</div><div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">YOU</div>`;
+            box.appendChild(uDiv);
+            input.value = '';
+            box.scrollTop = box.scrollHeight;
+
+            // Assistant placeholder bubble
+            const bDiv = document.createElement('div');
+            bDiv.className = "flex items-start space-x-3";
+            const replyId = 'reply-' + Date.now();
+            bDiv.innerHTML = `<div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">BOT</div><div class="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-slate-200 max-w-xl shadow" id="${replyId}"><span class="animate-pulse text-cyan-400">Thinking...</span></div>`;
+            box.appendChild(bDiv);
+            box.scrollTop = box.scrollHeight;
+
+            const replyBox = document.getElementById(replyId);
+
+            try {
+                const res = await fetch(`${currentBaseURL}/chat/${activeBotId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, history: [] })
+                });
+
+                if (!res.ok) {
+                    replyBox.innerText = `[Error: ${res.statusText}]`;
+                    return;
+                }
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+
+                replyBox.innerText = ""; // Clear "Thinking..."
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullText += chunk;
+                    replyBox.innerText = fullText;
+                    box.scrollTop = box.scrollHeight;
+                }
+            } catch(e) {
+                replyBox.innerText = `[Network Error: ${e}]`;
+            }
+        }
+
+        async function triggerOverlaySimulation() {
+            const out = document.getElementById('overlay-output');
+            out.innerText = "Simulating screen capture & sending to LLaVA 7B on host...";
+            try {
+                const res = await fetch(`${currentBaseURL}/overlay`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                        question: "Analyze the screen and summarize key insights."
+                    })
+                });
+                if(res.ok) {
+                    const data = await res.json();
+                    out.innerText = `[LLaVA Vision Analysis Result]:\n${data.answer}`;
+                } else {
+                    out.innerText = "[Error]: Vision model endpoint returned an error or timed out.";
+                }
+            } catch(e) {
+                out.innerText = `[Connection Error]: ${e}`;
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>

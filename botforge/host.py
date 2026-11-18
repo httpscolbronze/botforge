@@ -19,7 +19,8 @@ from dotenv import load_dotenv
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
+import aiofiles
 import uvicorn
 
 load_dotenv()
@@ -65,9 +66,36 @@ def _show_lan_ip():
         print('   LAN:     (could not detect IP)')
 
 
-# ── Health ────────────────────────────────────────────────────────────────────
-@app.get('/')
-def health():
+# ── System Status & Active Models ──────────────────────────────────────────
+@app.get('/status')
+async def system_status():
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434').rstrip('/')
+    chat_model = os.getenv('CHAT_MODEL', 'gemma3:1b')
+    vision_model = os.getenv('VISION_MODEL', 'llava:7b')
+
+    models = []
+    try:
+        r = requests.get(f'{ollama_host}/api/tags', timeout=2)
+        if r.status_code == 200:
+            models = [m.get('name') for m in r.json().get('models', [])]
+    except Exception:
+        pass
+
+    return {
+        'status': 'online',
+        'chat_model': chat_model,
+        'vision_model': vision_model,
+        'available_models': models
+    }
+
+
+# ── Web UI / Health ──────────────────────────────────────────────────────────
+@app.get('/', response_class=HTMLResponse)
+async def serve_ui():
+    html_path = Path(__file__).parent / 'botforge.html'
+    if html_path.exists():
+        async with aiofiles.open(html_path, 'r', encoding='utf-8') as f:
+            return await f.read()
     return {'status': 'BotForge Host is running', 'version': '1.0'}
 
 
@@ -145,6 +173,7 @@ def list_bots_endpoint():
 async def update_bot_endpoint(bot_id: str, body: dict):
     bot = get_bot(bot_id)
     if not bot:
+        
         raise HTTPException(status_code=404, detail='Bot not found')
     # Regenerate system prompt if config changed
     if any(k in body for k in ['persona', 'tone', 'language', 'length', 'guardrails', 'domain']):
