@@ -14,6 +14,7 @@ import base64
 import asyncio
 import tempfile
 import subprocess
+import requests
 from pathlib import Path
 from dotenv import load_dotenv
 
